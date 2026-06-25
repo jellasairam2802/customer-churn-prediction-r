@@ -1,0 +1,649 @@
+## Question - 1
+
+```{r}
+library(tidyverse)
+library(caret)
+Model_Building_Data <- read.csv("Model_Building_Data.csv")
+str(Model_Building_Data)
+summary(Model_Building_Data)
+
+```
+## Observations : 
+- There are 6488 observations and 17 variables.
+
+- Most variables are categorical.
+
+- TotalCharges has some NA values.
+
+```{r}
+# Checking for missing values
+colSums(is.na(Model_Building_Data))
+
+# Removing rows with missing TotalCharges
+Model_Building_Data <- Model_Building_Data[!is.na(Model_Building_Data$TotalCharges), ]
+
+```
+
+
+```{r}
+# Visualize tenure
+ggplot(Model_Building_Data, aes(x = Tenure, fill = Status)) +
+  geom_histogram(binwidth = 5, position = "dodge") +
+  labs(title = "Tenure Distribution by Customer Status")
+
+# Visualize Monthly Charges
+ggplot(Model_Building_Data, aes(x = MonthlyCharges, fill = Status)) +
+  geom_histogram(binwidth = 10, position = "dodge") +
+  labs(title = "Monthly Charges Distribution by Customer Status")
+
+```
+## Observations :  
+- Tenure: Customers who left tend to have lower tenure.
+
+- MonthlyCharges: Higher charges are linked to higher churn.
+
+```{r}
+# Contract type vs churn
+ggplot(Model_Building_Data, aes(x = Contract, fill = Status)) +
+  geom_bar(position = "fill") +
+  labs(title = "Contract Type vs Customer Status", y = "Proportion")
+
+# Payment method vs churn
+ggplot(Model_Building_Data, aes(x = PaymentMethod, fill = Status)) +
+  geom_bar(position = "fill") +
+  labs(title = "Payment Method vs Customer Status", y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+## Observations :  
+- Customers with month-to-month contracts have higher churn.
+
+- Electronic check is associated with higher churn.
+
+- Longer contracts (1 or 2 years) see more retention.
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(Model_Building_Data$Status, p = 0.8, list = FALSE)
+
+train_df <- Model_Building_Data[train_index, ]
+test_df <- Model_Building_Data[-train_index, ]
+
+
+```
+
+
+## Question - 2
+```{r}
+library(tidyverse)
+library(caret)
+library(pROC)
+
+# Load and clean data
+model_df <- read.csv("Model_Building_Data.csv")
+model_df <- model_df[!is.na(model_df$TotalCharges), ]
+
+# Convert Status to factor with correct reference level
+model_df$Status <- factor(model_df$Status, levels = c("Current", "Left"))
+
+# Train-test split (80/20)
+set.seed(123)
+train_index <- createDataPartition(model_df$Status, p = 0.8, list = FALSE)
+train_df <- model_df[train_index, ]
+test_df <- model_df[-train_index, ]
+
+# Logistic regression model (using all variables)
+log_model <- glm(Status ~ Gender + SeniorCitizen + Partner + Dependents +
+                   Tenure + PhoneService + MultipleLines + InternetService +
+                   OnlineSecurity + DeviceProtection + StreamingMovies +
+                   Contract + PaperlessBilling + PaymentMethod +
+                   MonthlyCharges + TotalCharges,
+                 data = train_df, family = "binomial")
+
+# Model summary
+summary(log_model)
+
+# Predict probabilities on test data
+logistic_prob <- predict(log_model, newdata = test_df, type = "response")
+
+# ROC and AUC
+roc_obj <- roc(test_df$Status, logistic_prob)
+auc(roc_obj)
+plot(roc_obj, main = "ROC Curve for Logistic Regression", col = "blue")
+```
+# Logistic Regression Coefficient Interpretations :  
+- Tenure (Estimate = -0.06398)
+- A one-unit increase in tenure (i.e., staying one additional month) reduces the odds of churn by a factor of exp(-0.06398), holding other variables constant.  
+
+- TotalCharges (Estimate = 0.0003647)
+- A one-unit increase in total charges is associated with a very small increase in the odds of churn by a factor of exp(0.0003647).    
+
+- SeniorCitizen (Estimate = 0.3056)
+- Being a senior citizen increases the odds of churn by a factor of exp(0.3056) compared to a non-senior, holding all else equal.  
+
+- PhoneServiceYes (Estimate = -0.5431)
+- Customers with phone service have lower odds of churn by a factor of exp(-0.5431) compared to those without.  
+
+- MultipleLinesYes (Estimate = 0.2334)
+- Having multiple lines increases the odds of churn by a factor of exp(0.2334)  compared to having a single line.  
+
+- InternetServiceFiber optic (Estimate = 1.107)
+- Customers with fiber optic internet have much higher odds of churn — by a factor of exp(1.107)  compared to those with DSL.  
+
+- InternetServiceNo (Estimate = -0.8469)
+- Customers without internet service have much lower odds of churn — by a factor of exp(-0.8469).  
+
+- OnlineSecurityYes (Estimate = -0.3775)
+- Customers who have online security are less likely to churn, with odds reduced by a factor of exp(-0.3775.  
+
+- StreamingMoviesYes (Estimate = 0.2853)
+- Customers who stream movies are more likely to churn, with odds increased by a factor of exp(0.2853). 
+
+- ContractOne year (Estimate = -0.7025)
+- Customers with a one-year contract have lower odds of churn — by a factor of exp(-0.7025) compared to those with month-to-month plans.  
+- ContractTwo year (Estimate = -1.633)
+- Customers on two-year contracts have much lower odds of churn — by a factor of exp(-1.633).  
+
+- PaymentMethodElectronic check (Estimate = 0.3498)
+- Customers who pay via electronic check are more likely to churn, with odds increased by a factor of exp(0.3498).  
+
+# Classification using fixed threshold of 0.10 
+```{r}
+logistic_class_0.10 <- ifelse(logistic_prob > 0.10, "Left", "Current")
+table(logistic_class_0.10, test_df$Status)
+
+```
+# Calculating the Prediction Accuracy  
+```{r}
+(471+324)/(471+22+480+324)
+```
+
+# Classification using fixed threshold of 0.15  
+```{r}
+logistic_class_0.15 <- ifelse(logistic_prob > 0.15, "Left", "Current")
+table(logistic_class_0.15, test_df$Status)
+```
+# Calculating the Prediction Accuracy  
+```{r}
+(546+316)/(546+30+405+316)
+```
+# Classification using fixed threshold of 0.05  
+
+```{r}
+logistic_class_0.05 <- ifelse(logistic_prob > 0.05, "Left", "Current")
+table(logistic_class_0.05, test_df$Status)
+
+```
+
+# Calculating the Prediction Accuracy  
+```{r}
+(352+336)/(352+10+599+336)
+```
+
+## Observations :   
+# Model Performance :  
+- The AUC value of the logistic regression model is approximately r log_auc, indicating good model performance in distinguishing between churned and retained customers.
+
+- Using a threshold of 0.10, we predicted churn effectively, capturing more churners (sensitivity) while accepting a few false positives.  
+
+# Coefficient Interpretations:  
+- Contract type has a strong influence on churn. Customers with two-year contracts are significantly less likely to leave, while those on month-to-month contracts have a high likelihood of churn.
+
+- Customers paying via Electronic Check are more likely to churn compared to those using credit cards or bank transfers.
+
+- Monthly Charges is positively associated with churn – higher bills correlate with higher likelihood of leaving.  
+## third question  
+
+```{r}
+library(e1071)
+library(pROC)
+```
+
+```{r}
+# Model 1: All variables
+nb_model1 <- naiveBayes(Status ~ ., data = train_df)
+
+# Model 2: Selected predictors based on earlier insights
+nb_model2 <- naiveBayes(Status ~ Contract + MonthlyCharges + Tenure + OnlineSecurity + PaymentMethod + TotalCharges, data = train_df)
+
+# Model 3: Minimal predictors
+nb_model3 <- naiveBayes(Status ~ Contract + MonthlyCharges + Tenure, data = train_df)
+
+```
+
+```{r}
+# Model 1
+nb_prob1 <- predict(nb_model1, newdata = test_df, type = "raw")[, "Left"]
+
+# Model 2
+nb_prob2 <- predict(nb_model2, newdata = test_df, type = "raw")[, "Left"]
+
+# Model 3
+nb_prob3 <- predict(nb_model3, newdata = test_df, type = "raw")[, "Left"]
+
+
+```
+
+```{r}
+# AUC for every model
+nb_roc1 <- roc(test_df$Status, nb_prob1)
+nb_roc2 <- roc(test_df$Status, nb_prob2)
+nb_roc3 <- roc(test_df$Status, nb_prob3)
+
+auc(nb_roc1)
+auc(nb_roc2)
+auc(nb_roc3)
+
+
+```
+
+```{r}
+# Plotting ROC for best model 
+plot(nb_roc2, main = "ROC Curve - Naive Bayes (Best Model)", col = "darkgreen")
+
+
+```
+
+```{r}
+
+# Threshold 0.10
+nb_class_0.10 <- ifelse(nb_prob2 > 0.10, "Left", "Current")
+table(nb_class_0.10, test_df$Status)
+
+# Threshold 0.15
+nb_class_0.15 <- ifelse(nb_prob2 > 0.15, "Left", "Current")
+table(nb_class_0.15, test_df$Status)
+
+# Threshold 0.50
+nb_class_0.50 <- ifelse(nb_prob2 > 0.50, "Left", "Current")
+table(nb_class_0.50, test_df$Status)
+
+
+
+```
+## observations :  
+# Model Comparison:  
+- Among the three Naive Bayes models tested, the one using predictors like Contract, Tenure, MonthlyCharges,  OnlineSecurity, PaymentMethod,  and TotalCharges  had the highest AUC of approximately r nb_auc.  
+
+- Naive Bayes assumes feature independence, which is a limitation, but it still performs well with carefully chosen variables.   
+
+# Threshold Evaluation:  
+- At a 0.10 threshold, the model successfully identifies customers with a higher risk of leaving, providing a strong base for proactive business intervention.
+
+- Although false positives exist, the cost of losing a customer is usually higher than the cost of a false alarm, so this model is practical for early warnings.
+
+
+## question - 4
+
+```{r}
+# Model 1: All predictors
+library(MASS)
+
+lda_model1 <- lda(Status ~ Gender + SeniorCitizen + Partner + Dependents +
+                    Tenure + PhoneService + MultipleLines + InternetService +
+                    OnlineSecurity + DeviceProtection + StreamingMovies +
+                    Contract + PaperlessBilling + PaymentMethod +
+                    MonthlyCharges + TotalCharges,
+                  data = train_df)
+
+# Model 2: Based on strongest predictors from previous models
+lda_model2 <- lda(Status ~ Contract + MonthlyCharges + Tenure + PaymentMethod + OnlineSecurity + TotalCharges,
+                  data = train_df)
+
+# Model 3: Minimal model
+lda_model3 <- lda(Status ~ Contract + MonthlyCharges + Tenure,
+                  data = train_df)
+
+
+```
+
+```{r}
+# Model 1
+lda_pred1 <- predict(lda_model1, newdata = test_df)
+lda_prob1 <- lda_pred1$posterior[, "Left"]
+
+# Model 2
+lda_pred2 <- predict(lda_model2, newdata = test_df)
+lda_prob2 <- lda_pred2$posterior[, "Left"]
+
+# Model 3
+lda_pred3 <- predict(lda_model3, newdata = test_df)
+lda_prob3 <- lda_pred3$posterior[, "Left"]
+
+```
+
+
+```{r}
+# AUC
+lda_roc1 <- roc(test_df$Status, lda_prob1)
+lda_roc2 <- roc(test_df$Status, lda_prob2)
+lda_roc3 <- roc(test_df$Status, lda_prob3)
+
+auc(lda_roc1)
+auc(lda_roc2)
+auc(lda_roc3)
+
+```
+
+
+```{r}
+# Plot ROC for best LDA model (Model 3)
+plot(lda_roc3, main = "ROC Curve - LDA (Best Model)", col = "purple")
+
+```
+
+
+```{r}
+
+# Threshold 0.10
+lda_probability3 <- lda_prob3  # just to use your naming
+LDA_test_data2 <- test_df      # your variable naming style
+lda_class_0.10 <- ifelse(lda_probability3 > 0.10, "Left", "Current")
+table(lda_class_0.10, LDA_test_data2$Status)
+
+# Threshold 0.15
+lda_class_0.15 <- ifelse(lda_probability3 > 0.15, "Left", "Current")
+table(lda_class_0.15, LDA_test_data2$Status)
+
+# Threshold 0.50
+lda_class_0.50 <- ifelse(lda_probability3 > 0.50, "Left", "Current")
+table(lda_class_0.50, LDA_test_data2$Status)
+
+
+```
+## Observations :  
+# Model Performance:  
+- The best-performing LDA model used Contract, MonthlyCharges, and Tenure as predictors, achieving an AUC of approximately r lda_auc.
+
+- LDA performed well with these selected features, indicating that customer contract type and billing level provide clear separation between churned and retained customers.  
+
+## Threshold Evaluation:  
+- Using a 0.10 threshold helped identify more potential churners, prioritizing sensitivity.  
+
+- The confusion matrix revealed a reasonable trade-off between capturing churners and avoiding too many false positives.  
+
+- LDA also provides posterior probabilities, making it useful for ranking customers by churn risk.  
+ 
+## question - 5
+
+```{r}
+library(MASS)
+qda_model_simple <- qda(Status ~ Contract + Tenure + MonthlyCharges + TotalCharges,
+                        data = train_df)
+
+# Predict probabilities
+qda_pred_simple <- predict(qda_model_simple, newdata = test_df)
+qda_prob_simple <- qda_pred_simple$posterior[, "Left"]
+
+
+```
+
+
+```{r}
+qda_probability <- qda_prob_simple
+qda_test_data <- test_df
+
+# Threshold 0.10
+qda_class_0.10 <- ifelse(qda_probability > 0.10, "Left", "Current")
+table(qda_class_0.10, qda_test_data$Status)
+
+# Threshold 0.15
+qda_class_0.15 <- ifelse(qda_probability > 0.15, "Left", "Current")
+table(qda_class_0.15, qda_test_data$Status)
+
+# Threshold 0.50
+qda_class_0.50 <- ifelse(qda_probability > 0.50, "Left", "Current")
+table(qda_class_0.50, qda_test_data$Status)
+
+```
+
+
+```{r}
+library(pROC)
+
+qda_roc_simple <- roc(qda_test_data$Status, qda_probability)
+auc(qda_roc_simple)
+plot(qda_roc_simple, main = "ROC Curve - QDA (Simplified Model)", col = "brown")
+
+```
+## Observations :  
+# Model Adjustment:  
+- A full QDA model failed due to rank deficiency, which is common when predictors are highly correlated or when there are more predictors than needed.  
+
+- A simplified model using only numeric variables like Contract, Tenure, MonthlyCharges, and TotalCharges was successful and had a competitive AUC of approximately r qda_auc.  
+
+# Threshold Evaluation:  
+- Like LDA, QDA also worked best with a 0.10 threshold, detecting many at-risk customers.
+
+- It offers flexibility in capturing nonlinear boundaries, which may help in capturing subtle churn patterns.
+
+## question - 6
+
+```{r}
+library(tree)
+library(caret)
+
+# Fitting tree models with different predictor combinations
+
+# Model 1: All predictors
+tree_model1 <- tree(Status ~ ., data = train_df)
+
+# Model 2: Selected predictors
+tree_model2 <- tree(Status ~ Contract + Tenure + MonthlyCharges + OnlineSecurity + PaymentMethod,
+                    data = train_df)
+
+# Model 3: Minimal predictors
+tree_model3 <- tree(Status ~ Contract + MonthlyCharges + Tenure,
+                    data = train_df)
+
+```
+
+
+```{r}
+# Model 1
+tree_pred1 <- predict(tree_model1, newdata = test_df, type = "class")
+tree_pred1 <- factor(tree_pred1, levels = c("Current", "Left"))
+confusionMatrix(tree_pred1, factor(test_df$Status, levels = c("Current", "Left")))
+
+# Model 2
+tree_pred2 <- predict(tree_model2, newdata = test_df, type = "class")
+tree_pred2 <- factor(tree_pred2, levels = c("Current", "Left"))
+confusionMatrix(tree_pred2, factor(test_df$Status, levels = c("Current", "Left")))
+
+# Model 3
+tree_pred3 <- predict(tree_model3, newdata = test_df, type = "class")
+tree_pred3 <- factor(tree_pred3, levels = c("Current", "Left"))
+confusionMatrix(tree_pred3, factor(test_df$Status, levels = c("Current", "Left")))
+
+
+```
+
+```{r}
+# Plot the trees
+plot(tree_model1); text(tree_model1, pretty = 0, cex = 0.7, main = "Decision Tree - Model 1")
+plot(tree_model2); text(tree_model2, pretty = 0, cex = 0.7, main = "Decision Tree - Model 2")
+plot(tree_model3); text(tree_model3, pretty = 0, cex = 0.7, main = "Decision Tree - Model 3")
+
+
+```
+## 0bservations:  
+# Model Comparison:  
+- Among the three tree models, the one using Contract, Tenure, MonthlyCharges, OnlineSecurity, and PaymentMethod gave the highest prediction accuracy on the test set.  
+
+- While decision trees don’t provide probabilities or AUC like other models, they are highly interpretable.  
+
+# Business Utility:  
+- The tree structure clearly highlighted that customers on month-to-month contracts, with no online security, and higher monthly charges are at the greatest risk.
+
+- These insights are easy to communicate to business teams and ideal for rule-based interventions.  
+
+## question - 7
+
+```{r}
+library(pROC)
+library(caret)
+
+
+```
+
+
+```{r}
+# AUC for Logistic Regression
+log_auc <- auc(test_df$Status, logistic_prob)
+
+# AUC for Naive Bayes (Model 2)
+nb_auc <- auc(test_df$Status, nb_prob2)
+
+# AUC for LDA (Model 3)
+lda_auc <- auc(test_df$Status, lda_prob3)
+
+# AUC for QDA (simplified model)
+qda_auc <- auc(qda_test_data$Status, qda_probability)
+
+# Print all AUCs
+log_auc
+nb_auc
+lda_auc
+qda_auc
+
+```
+
+
+```{r}
+# Logistic Regression (threshold 0.10)
+logistic_class_0.10 <- ifelse(logistic_prob > 0.10, "Left", "Current")
+log_cm <- table(logistic_class_0.10, test_df$Status)
+log_accuracy <- sum(diag(log_cm)) / sum(log_cm)
+
+# Naive Bayes (threshold 0.10)
+nb_class_0.10 <- ifelse(nb_prob2 > 0.10, "Left", "Current")
+nb_cm <- table(nb_class_0.10, test_df$Status)
+nb_accuracy <- sum(diag(nb_cm)) / sum(nb_cm)
+
+# LDA (threshold 0.10)
+lda_class_0.10 <- ifelse(lda_prob3 > 0.10, "Left", "Current")
+lda_cm <- table(lda_class_0.10, test_df$Status)
+lda_accuracy <- sum(diag(lda_cm)) / sum(lda_cm)
+
+# QDA (threshold 0.10)
+qda_class_0.10 <- ifelse(qda_probability > 0.10, "Left", "Current")
+qda_cm <- table(qda_class_0.10, qda_test_data$Status)
+qda_accuracy <- sum(diag(qda_cm)) / sum(qda_cm)
+
+# Decision Tree (assume tree_model2 was best)
+tree_pred <- predict(tree_model2, newdata = test_df, type = "class")
+tree_pred <- factor(tree_pred, levels = c("Current", "Left"))
+tree_cm <- table(tree_pred, test_df$Status)
+tree_accuracy <- sum(diag(tree_cm)) / sum(tree_cm)
+
+# Print all accuracies
+log_accuracy
+nb_accuracy
+lda_accuracy
+qda_accuracy
+tree_accuracy
+
+```
+## Observations :  
+
+# AUC Comparison:  
+- Logistic Regression had the highest AUC of approximately r log_auc, indicating it is the best at separating churned from current customers.  
+
+- Naive Bayes and LDA followed closely with slightly lower AUCs.  
+
+- QDA, even with a simplified model, performed competitively but did not outperform logistic regression.  
+
+# Accuracy Comparison (Threshold = 0.10):  
+- Decision Tree model had the highest prediction accuracy on the test set, based on the confusion matrix.  
+
+- While it performed best in raw accuracy, it lacks the probabilistic interpretation provided by the other models.  
+
+# Conclusion :  
+- Logistic regression is the best overall model when combining AUC and interpretability.  
+
+- Decision trees are useful for business rule generation but may not be as flexible or robust for probability-based risk scoring.  
+
+## question - 8 
+
+```{r}
+# Load the implementation data
+implementation_df <- read.csv("Implementation_Data.csv")
+
+# Predict churn probabilities using logistic regression model
+logistic_pred_impl <- predict(log_model, newdata = implementation_df, type = "response")
+
+```
+
+
+```{r}
+# Classify customers using threshold 0.10
+implementation_df$Churn_Prediction <- ifelse(logistic_pred_impl > 0.10, "Left", "Current")
+
+# Count predicted churners
+table(implementation_df$Churn_Prediction)
+
+```
+
+
+```{r}
+# Total revenue from predicted churners
+churned_customers <- implementation_df[implementation_df$Churn_Prediction == "Left", ]
+revenue_loss <- sum(churned_customers$MonthlyCharges)
+revenue_loss
+
+```
+
+
+```{r}
+# Sort coefficients by absolute value 
+log_coeff <- summary(log_model)$coefficients
+sorted_importance <- sort(abs(log_coeff[-1, 1]), decreasing = TRUE)
+sorted_importance
+
+```
+
+
+```{r}
+# Set parameters
+credit_offer <- 20
+retention_rate <- 0.5
+
+# Estimating how many customers will stay
+retained_customers <- nrow(churned_customers) * retention_rate
+
+# Total revenue retained
+retained_revenue <- sum(churned_customers$MonthlyCharges) * retention_rate
+
+# Total incentive cost
+incentive_cost <- credit_offer * retained_customers
+
+# Net benefit
+net_benefit <- retained_revenue - incentive_cost
+net_benefit
+
+```
+## Observations :  
+# Churn Prediction:  
+- The logistic regression model flagged approximately r nrow(churned_customers) customers as likely to churn using a 0.10 threshold.  
+
+- These customers account for a potential monthly revenue loss of around r revenue_loss if they leave.  
+# Proposed Incentive Plan:  
+- Offering a $20/month credit could retain 50% of the at-risk customers.
+
+- Based on the simulation:  
+
+- Estimated revenue retained: r retained_revenue
+
+- Estimated incentive cost: r incentive_cost
+
+- Net monthly benefit: r net_benefit
+
+# Final Recommendation:  
+- Launch a targeted retention campaign offering credits or perks to high-risk customers.  
+
+- Focus on customers with month-to-month contracts, no online security, and high monthly charges.  
+
+- This strategy can yield a positive return while reducing churn and increasing customer satisfaction.  
+
+
+
