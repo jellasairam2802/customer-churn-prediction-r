@@ -25,6 +25,23 @@ Using a telecommunications dataset containing 6,488 customer records and 17 vari
 * Estimated $21,448 monthly revenue exposure
 * Estimated $7,764 net retention benefit opportunity
 
+## Visualizations
+
+### Data Overview
+![Data Overview](visuals/data_overview.png)
+
+### Model Comparison
+![Model Comparison](visuals/model_comparison.png)
+
+### ROC Curve
+![ROC Curve](visuals/roc_curve.png)
+
+### Decision Tree Analysis
+![Decision Tree](visuals/decision_tree_results.png)
+
+### Key Churn Drivers
+![Churn Drivers](visuals/churn_drivers.png)
+
 ## Tools & Technologies
 
 * R
